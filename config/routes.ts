@@ -1,4 +1,5 @@
-﻿import path from 'path';
+﻿import route from 'mock/route';
+import path from 'path';
 
 export default [
 	{
@@ -39,34 +40,40 @@ export default [
 		icon: 'ArrowsAltOutlined',
 	},
 	{
-		path: '/employee-management',
-		name: 'EmployeeManagement',
-		component: './EmployeeManagement',
-		icon: 'UserOutlined',
-	},
-	{
-		path: '/service-management',
-		name: 'ServiceManagement',
-		component: './ServiceManagement',
-		icon: 'ToolOutlined',
-	},
-	{
-		path: '/appointment-management',
-		name: 'AppointmentManagement',
-		component: './AppointmentManagement',
-		icon: 'CalendarOutlined',
-	},
-	{
-		path: '/Review',
-		name: 'Review',
-		component: './Review',
-		icon: 'StarOutlined',
-	},
-	{
-		path: '/revenue-stats',
-		name: 'RevenueStats',
-		component: './RevenueStats',
-		icon: 'DollarOutlined',
+		path: '/ung-dung-dat-lich',
+		name: 'Ứng dụng đặt lịch',
+		routes: [
+			{
+				path: '/ung-dung-dat-lich/employee-management',
+				name: 'Quản lý nhân viên',
+				component: './EmployeeManagement',
+				icon: 'UserOutlined',
+			},
+			{
+				path: '/ung-dung-dat-lich/service-management',
+				name: 'Quản lý dịch vụ',
+				component: './ServiceManagement',
+				icon: 'ToolOutlined',
+			},
+			{
+				path: '/ung-dung-dat-lich/appointment-management',
+				name: 'Đặt lịch',
+				component: './AppointmentManagement',
+				icon: 'CalendarOutlined',
+			},
+			{
+				path: '/ung-dung-dat-lich/Review',
+				name: 'Đánh giá',
+				component: './Review',
+				icon: 'StarOutlined',
+			},
+			{
+				path: '/ung-dung-dat-lich/revenue-stats',
+				name: 'Thống kê',
+				component: './RevenueStats',
+				icon: 'DollarOutlined',
+			},
+		],
 	},
 
 	// DANH MUC HE THONG

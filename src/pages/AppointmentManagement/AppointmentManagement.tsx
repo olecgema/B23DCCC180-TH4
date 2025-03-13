@@ -1,269 +1,300 @@
 import { Button, Form, Input, Modal, Table, Select, DatePicker, TimePicker, message, Tabs } from 'antd';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
 import moment from 'moment';
+
+// Import services
+import { fetchAppointments, createAppointment, updateAppointment, deleteAppointment } from '../../services/appointment';
+import { fetchServices } from '../../services/service';
+import { fetchEmployees } from '../../services/employee';
+
+// Import models
+import { Appointment } from '../../models/appointment';
+import { Service } from '../../models/service';
+import { Employee } from '../../models/employee';
+import { getEmployeesByServiceId, isEmployeeAvailable } from '../../models/employee';
 
 const { Option } = Select;
 const { TabPane } = Tabs;
 
-interface Service {
-  id: string;
-  name: string;
-  price: number;
-  workSchedule: string[];
-}
-
-interface Employee {
-  id: string;
-  name: string;
-  maxCustomersPerDay: number;
-  workSchedule: string[];
-  services: string[];
-}
-
-interface Appointment {
-  id?: string;
-  date: string;
-  time: string;
-  employeeId: string;
-  serviceId: string;
-  status: string;
-}
-
 const AppointmentForm: React.FC<{
-  isEdit: boolean;
-  row: Appointment | undefined;
-  setVisible: (visible: boolean) => void;
-  fetchAppointments: () => void;
-  services: Service[];
-  employees: Employee[];
-}> = ({ isEdit, row, setVisible, fetchAppointments, services, employees }) => {
-  const [form] = Form.useForm();
-  const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([]);
+	isEdit: boolean;
+	row: Appointment | undefined;
+	setVisible: (visible: boolean) => void;
+	fetchAppointmentData: () => void;
+	services: Service[];
+	employees: Employee[];
+}> = ({ isEdit, row, setVisible, fetchAppointmentData, services, employees }) => {
+	const [form] = Form.useForm();
+	const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([]);
 
-  useEffect(() => {
-    if (row && isEdit) {
-      form.setFieldsValue({
-        date: moment(row.date),
-        time: moment(row.time, 'HH:mm'),
-        serviceId: row.serviceId,
-        employeeId: row.employeeId,
-        status: row.status,
-      });
-    } else {
-      form.resetFields();
-    }
-  }, [row, isEdit, form]);
+	useEffect(() => {
+		if (row && isEdit) {
+			form.setFieldsValue({
+				date: moment(row.date),
+				time: moment(row.time, 'HH:mm'),
+				serviceId: row.serviceId,
+				employeeId: row.employeeId,
+				status: row.status,
+			});
+		}
+	}, [form, row, isEdit]);
 
-  const onServiceChange = (serviceId: string) => {
-    form.setFieldsValue({ employeeId: undefined });
-    const selectedService = services.find(service => service.id === serviceId);
-    if (selectedService) {
-      const available = employees.filter(employee =>
-        employee.services.includes(serviceId) &&
-        employee.workSchedule.some(schedule => selectedService.workSchedule.includes(schedule))
-      );
-      setAvailableEmployees(available);
-    }
-  };
+	const onServiceChange = (serviceId: string) => {
+		// Lọc nhân viên có thể thực hiện dịch vụ này
+		const filteredEmployees = getEmployeesByServiceId(employees, serviceId);
+		setAvailableEmployees(filteredEmployees);
 
-  const disabledDate = (current: moment.Moment) => {
-    return current && current < moment().startOf('day');
-  };
+		// Reset giá trị nhân viên nếu nhân viên hiện tại không thể thực hiện dịch vụ mới
+		const currentEmployeeId = form.getFieldValue('employeeId');
+		if (currentEmployeeId && !filteredEmployees.some((e) => e.id === currentEmployeeId)) {
+			form.setFieldsValue({ employeeId: undefined });
+		}
+	};
 
-  const disabledTime = (current: moment.Moment) => {
-    if (form.getFieldValue('date')?.isSame(moment(), 'day')) {
-      return {
-        disabledHours: () => Array.from({ length: 24 }, (_, i) => i).filter(hour => hour < moment().hour()),
-        disabledMinutes: () => Array.from({ length: 60 }, (_, i) => i).filter(minute => minute < moment().minute()),
-      };
-    }
-    return {};
-  };
+	const disabledDate = (current: moment.Moment) => {
+		// Không cho phép chọn ngày trong quá khứ
+		return current && current < moment().startOf('day');
+	};
 
-  const onFinish = async (values: any) => {
-    const apiUrl = 'https://67d2592590e0670699bd2980.mockapi.io/lich-hen/Lich';
-    const appointmentData = {
-      date: values.date.format('YYYY-MM-DD'),
-      time: values.time.format('HH:mm'),
-      employeeId: values.employeeId,
-      serviceId: values.serviceId,
-      status: values.status,
-    };
+	const disabledTime = (current: moment.Moment) => {
+		if (!current) return false;
 
-    // Kiểm tra lịch trùng
-    const response = await axios.get(apiUrl);
-    const existingAppointments = response.data as Appointment[];
-    const isDuplicate = existingAppointments.some(
-      (appointment) =>
-        appointment.date === appointmentData.date &&
-        appointment.time === appointmentData.time &&
-        appointment.employeeId === appointmentData.employeeId &&
-        (!isEdit || appointment.id !== row?.id)
-    );
+		// Không cho phép chọn giờ trong quá khứ nếu là ngày hiện tại
+		const today = moment().startOf('day');
+		const isToday = current.isSame(today, 'day');
 
-    if (isDuplicate) {
-      message.error('Lịch hẹn trùng với lịch đã có!');
-      return;
-    }
+		if (isToday) {
+			const currentHour = moment().hour();
+			return current.hour() < currentHour;
+		}
 
-    if (isEdit && row?.id) {
-      await axios.put(`${apiUrl}/${row.id}`, appointmentData);
-    } else {
-      await axios.post(apiUrl, appointmentData);
-    }
-    setVisible(false);
-    fetchAppointments();
-  };
+		return false;
+	};
 
-  return (
-    <Form form={form} onFinish={onFinish}>
-      <Form.Item label="Dịch vụ" name="serviceId" rules={[{ required: true, message: 'Vui lòng chọn dịch vụ!' }]}>
-        <Select placeholder="Chọn dịch vụ" onChange={onServiceChange}>
-          {services.map((service) => (
-            <Option key={service.id} value={service.id}>
-              {service.name}
-            </Option>
-          ))}
-        </Select>
-      </Form.Item>
-      <Form.Item label="Ngày" name="date" rules={[{ required: true, message: 'Vui lòng chọn ngày!' }]}>
-        <DatePicker disabledDate={disabledDate} />
-      </Form.Item>
-      <Form.Item label="Giờ" name="time" rules={[{ required: true, message: 'Vui lòng chọn giờ!' }]}>
-        <TimePicker format="HH:mm" disabledTime={disabledTime} />
-      </Form.Item>
-      <Form.Item label="Nhân viên" name="employeeId" rules={[{ required: true, message: 'Vui lòng chọn nhân viên!' }]}>
-        <Select placeholder="Chọn nhân viên">
-          {availableEmployees.map((employee) => (
-            <Option key={employee.id} value={employee.id}>
-              {employee.name}
-            </Option>
-          ))}
-        </Select>
-      </Form.Item>
-      <Form.Item label="Trạng thái" name="status" rules={[{ required: true, message: 'Vui lòng chọn trạng thái!' }]}>
-        <Select placeholder="Chọn trạng thái">
-          <Option value="Chờ duyệt">Chờ duyệt</Option>
-          <Option value="Xác nhận">Xác nhận</Option>
-          <Option value="Hoàn thành">Hoàn thành</Option>
-          <Option value="Hủy">Hủy</Option>
-        </Select>
-      </Form.Item>
-      <div className="form-footer">
-        <Button htmlType="submit" type="primary">
-          {isEdit ? 'Lưu' : 'Thêm'}
-        </Button>
-        <Button onClick={() => setVisible(false)}>Hủy</Button>
-      </div>
-    </Form>
-  );
+	const onFinish = async (values: any) => {
+		try {
+			const appointmentData = {
+				date: values.date.format('YYYY-MM-DD'),
+				time: values.time.format('HH:mm'),
+				employeeId: values.employeeId,
+				serviceId: values.serviceId,
+				status: values.status || 'Chờ xác nhận',
+			};
+
+			if (isEdit && row?.id) {
+				await updateAppointment(row.id, appointmentData);
+				message.success('Cập nhật lịch hẹn thành công!');
+			} else {
+				await createAppointment(appointmentData);
+				message.success('Tạo lịch hẹn thành công!');
+			}
+
+			setVisible(false);
+			form.resetFields();
+			fetchAppointmentData();
+		} catch (error) {
+			console.error('Error saving appointment:', error);
+			message.error('Có lỗi xảy ra khi lưu lịch hẹn!');
+		}
+	};
+
+	return (
+		<Form form={form} layout='vertical' onFinish={onFinish}>
+			<Form.Item name='date' label='Ngày hẹn' rules={[{ required: true, message: 'Vui lòng chọn ngày hẹn!' }]}>
+				<DatePicker disabledDate={disabledDate} format='DD/MM/YYYY' style={{ width: '100%' }} />
+			</Form.Item>
+
+			<Form.Item name='time' label='Giờ hẹn' rules={[{ required: true, message: 'Vui lòng chọn giờ hẹn!' }]}>
+				<TimePicker format='HH:mm' style={{ width: '100%' }} />
+			</Form.Item>
+
+			<Form.Item name='serviceId' label='Dịch vụ' rules={[{ required: true, message: 'Vui lòng chọn dịch vụ!' }]}>
+				<Select placeholder='Chọn dịch vụ' onChange={onServiceChange}>
+					{services.map((service) => (
+						<Option key={service.id} value={service.id}>
+							{service.name} - {service.price.toLocaleString()} VND
+						</Option>
+					))}
+				</Select>
+			</Form.Item>
+
+			<Form.Item name='employeeId' label='Nhân viên' rules={[{ required: true, message: 'Vui lòng chọn nhân viên!' }]}>
+				<Select placeholder='Chọn nhân viên' disabled={availableEmployees.length === 0}>
+					{availableEmployees.map((employee) => (
+						<Option key={employee.id} value={employee.id}>
+							{employee.name}
+						</Option>
+					))}
+				</Select>
+			</Form.Item>
+
+			{isEdit && (
+				<Form.Item name='status' label='Trạng thái'>
+					<Select>
+						<Option value='Chờ xác nhận'>Chờ xác nhận</Option>
+						<Option value='Đã xác nhận'>Đã xác nhận</Option>
+						<Option value='Hoàn thành'>Hoàn thành</Option>
+						<Option value='Đã hủy'>Đã hủy</Option>
+					</Select>
+				</Form.Item>
+			)}
+
+			<Form.Item>
+				<Button type='primary' htmlType='submit'>
+					{isEdit ? 'Cập nhật' : 'Tạo mới'}
+				</Button>
+			</Form.Item>
+		</Form>
+	);
 };
 
 const AppointmentManagement = () => {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
-  const [visible, setVisible] = useState(false);
-  const [isEdit, setIsEdit] = useState(false);
-  const [selectedRow, setSelectedRow] = useState<Appointment | undefined>();
-  const [selectedStatus, setSelectedStatus] = useState<string>('Chờ duyệt');
+	const [appointments, setAppointments] = useState<Appointment[]>([]);
+	const [services, setServices] = useState<Service[]>([]);
+	const [employees, setEmployees] = useState<Employee[]>([]);
+	const [visible, setVisible] = useState(false);
+	const [isEdit, setIsEdit] = useState(false);
+	const [currentRow, setCurrentRow] = useState<Appointment | undefined>(undefined);
+	const [activeTab, setActiveTab] = useState('all');
+	const [loading, setLoading] = useState(true);
 
-  const fetchAppointments = async () => {
-    const response = await axios.get('https://67d2592590e0670699bd2980.mockapi.io/lich-hen/Lich');
-    setAppointments(response.data);
-  };
+	const fetchAppointmentData = async () => {
+		setLoading(true);
+		try {
+			const [appointmentsData, servicesData, employeesData] = await Promise.all([
+				fetchAppointments(),
+				fetchServices(),
+				fetchEmployees(),
+			]);
 
-  const fetchServices = async () => {
-    const response = await axios.get('https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Vieclam');
-    setServices(response.data);
-  };
+			setAppointments(appointmentsData);
+			setServices(servicesData);
+			setEmployees(employeesData);
+		} catch (error) {
+			console.error('Error fetching data:', error);
+			message.error('Có lỗi xảy ra khi tải dữ liệu!');
+		} finally {
+			setLoading(false);
+		}
+	};
 
-  const fetchEmployees = async () => {
-    const response = await axios.get('https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Nhanvien');
-    setEmployees(response.data);
-  };
+	useEffect(() => {
+		fetchAppointmentData();
+	}, []);
 
-  useEffect(() => {
-    fetchAppointments();
-    fetchServices();
-    fetchEmployees();
-  }, []);
+	const handleAdd = () => {
+		setIsEdit(false);
+		setCurrentRow(undefined);
+		setVisible(true);
+	};
 
-  const columns = [
-    { title: 'Dịch vụ', dataIndex: 'serviceId', key: 'service', width: 200, render: (serviceId: string) => services.find(service => service.id === serviceId)?.name || 'Không xác định' },
-    { title: 'Ngày', dataIndex: 'date', key: 'date', width: 150 },
-    { title: 'Giờ', dataIndex: 'time', key: 'time', width: 100 },
-    {
-      title: 'Nhân viên',
-      dataIndex: 'employeeId',
-      key: 'employee',
-      width: 200,
-      render: (employeeId: string) => employees.find((employee) => employee.id === employeeId)?.name || 'Không xác định',
-    },
-    { title: 'Trạng thái', dataIndex: 'status', key: 'status', width: 150 },
-    {
-      title: 'Hành động',
-      width: 200,
-      align: 'center' as const,
-      render: (record: Appointment) => (
-        <div>
-          <Button
-            onClick={() => {
-              setVisible(true);
-              setSelectedRow(record);
-              setIsEdit(true);
-            }}
-          >
-            Sửa
-          </Button>
-          <Button
-            style={{ marginLeft: 10 }}
-            type="primary"
-            onClick={async () => {
-              await axios.delete(`https://67d2592590e0670699bd2980.mockapi.io/lich-hen/Lich/${record.id}`);
-              fetchAppointments();
-            }}
-          >
-            Xóa
-          </Button>
-        </div>
-      ),
-    },
-  ];
+	const handleEdit = (record: Appointment) => {
+		setIsEdit(true);
+		setCurrentRow(record);
+		setVisible(true);
+	};
 
-  const filteredAppointments = appointments.filter(appointment => appointment.status === selectedStatus);
+	const handleDelete = async (id: string) => {
+		try {
+			await deleteAppointment(id);
+			message.success('Xóa lịch hẹn thành công!');
+			fetchAppointmentData();
+		} catch (error) {
+			console.error('Error deleting appointment:', error);
+			message.error('Có lỗi xảy ra khi xóa lịch hẹn!');
+		}
+	};
 
-  return (
-    <div>
-      <Button type="primary" onClick={() => { setVisible(true); setIsEdit(false); }}>
-        Thêm lịch hẹn
-      </Button>
-      <Tabs defaultActiveKey="Chờ duyệt" onChange={setSelectedStatus}>
-        <TabPane tab="Chờ duyệt" key="Chờ duyệt" />
-        <TabPane tab="Xác nhận" key="Xác nhận" />
-        <TabPane tab="Hoàn thành" key="Hoàn thành" />
-        <TabPane tab="Hủy" key="Hủy" />
-      </Tabs>
-      <Table dataSource={filteredAppointments} columns={columns} rowKey="id" />
-      <Modal
-        destroyOnClose
-        footer={false}
-        title={isEdit ? 'Sửa lịch hẹn' : 'Thêm lịch hẹn'}
-        visible={visible}
-        onCancel={() => setVisible(false)}
-      >
-        <AppointmentForm
-          isEdit={isEdit}
-          row={selectedRow}
-          setVisible={setVisible}
-          fetchAppointments={fetchAppointments}
-          services={services}
-          employees={employees}
-        />
-      </Modal>
-    </div>
-  );
+	const columns = [
+		{
+			title: 'Ngày hẹn',
+			dataIndex: 'date',
+			key: 'date',
+			render: (text: string) => moment(text).format('DD/MM/YYYY'),
+		},
+		{
+			title: 'Giờ hẹn',
+			dataIndex: 'time',
+			key: 'time',
+		},
+		{
+			title: 'Dịch vụ',
+			dataIndex: 'serviceId',
+			key: 'serviceId',
+			render: (serviceId: string) => {
+				const service = services.find((s) => s.id === serviceId);
+				return service ? service.name : 'N/A';
+			},
+		},
+		{
+			title: 'Nhân viên',
+			dataIndex: 'employeeId',
+			key: 'employeeId',
+			render: (employeeId: string) => {
+				const employee = employees.find((e) => e.id === employeeId);
+				return employee ? employee.name : 'N/A';
+			},
+		},
+		{
+			title: 'Trạng thái',
+			dataIndex: 'status',
+			key: 'status',
+		},
+		{
+			title: 'Thao tác',
+			key: 'action',
+			render: (_: any, record: Appointment) => (
+				<>
+					<Button type='link' onClick={() => handleEdit(record)}>
+						Sửa
+					</Button>
+					<Button type='link' danger onClick={() => handleDelete(record.id!)}>
+						Xóa
+					</Button>
+				</>
+			),
+		},
+	];
+
+	const filteredAppointments =
+		activeTab === 'all' ? appointments : appointments.filter((app) => app.status === activeTab);
+
+	return (
+		<div style={{ padding: '20px' }}>
+			<div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+				<h2>Quản lý lịch hẹn</h2>
+				<Button type='primary' onClick={handleAdd}>
+					Thêm lịch hẹn
+				</Button>
+			</div>
+
+			<Tabs activeKey={activeTab} onChange={setActiveTab}>
+				<TabPane tab='Tất cả' key='all' />
+				<TabPane tab='Chờ xác nhận' key='Chờ xác nhận' />
+				<TabPane tab='Đã xác nhận' key='Đã xác nhận' />
+				<TabPane tab='Hoàn thành' key='Hoàn thành' />
+				<TabPane tab='Đã hủy' key='Đã hủy' />
+			</Tabs>
+
+			<Table columns={columns} dataSource={filteredAppointments} rowKey='id' loading={loading} />
+
+			<Modal
+				title={isEdit ? 'Sửa lịch hẹn' : 'Thêm lịch hẹn'}
+				visible={visible}
+				onCancel={() => setVisible(false)}
+				footer={null}
+			>
+				<AppointmentForm
+					isEdit={isEdit}
+					row={currentRow}
+					setVisible={setVisible}
+					fetchAppointmentData={fetchAppointmentData}
+					services={services}
+					employees={employees}
+				/>
+			</Modal>
+		</div>
+	);
 };
 
 export default AppointmentManagement;

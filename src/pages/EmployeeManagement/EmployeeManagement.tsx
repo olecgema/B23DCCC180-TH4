@@ -1,31 +1,23 @@
-import { Button, Form, Input, Modal, Table, Select } from 'antd';
+import { Button, Form, Input, Modal, Table, Select, message } from 'antd';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+
+// Import services
+import { fetchEmployees, createEmployee, updateEmployee, deleteEmployee } from '../../services/employee';
+import { fetchServices } from '../../services/service';
+
+// Import models
+import { Employee } from '../../models/employee';
+import { Service } from '../../models/service';
 
 const { Option } = Select;
-
-interface Service {
-	id: string;
-	name: string;
-	price: number;
-	workSchedule: string[];
-}
-
-interface Employee {
-	id?: string;
-	name: string;
-	maxCustomersPerDay: number;
-	workSchedule: string[]; // Mảng lịch làm việc
-	services: string[]; // Mảng ID dịch vụ
-}
 
 const EmployeeForm: React.FC<{
 	isEdit: boolean;
 	row: Employee | undefined;
 	setVisible: (visible: boolean) => void;
-	fetchEmployees: () => void;
+	fetchEmployeeData: () => void;
 	services: Service[];
-}> = ({ isEdit, row, setVisible, fetchEmployees, services }) => {
+}> = ({ isEdit, row, setVisible, fetchEmployeeData, services }) => {
 	const [form] = Form.useForm();
 
 	useEffect(() => {
@@ -39,63 +31,73 @@ const EmployeeForm: React.FC<{
 		} else {
 			form.resetFields();
 		}
-	}, [row, isEdit, form]);
+	}, [form, row, isEdit]);
 
 	const onFinish = async (values: any) => {
-		const apiUrl = 'https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Nhanvien';
-		const employeeData = {
-			name: values.name,
-			maxCustomersPerDay: values.maxCustomersPerDay,
-			workSchedule: values.workSchedule || [],
-			services: values.services || [],
-		};
+		try {
+			const employeeData = {
+				name: values.name,
+				maxCustomersPerDay: values.maxCustomersPerDay,
+				workSchedule: values.workSchedule || [],
+				services: values.services || [],
+			};
 
-		if (isEdit && row?.id) {
-			await axios.put(`${apiUrl}/${row.id}`, employeeData);
-		} else {
-			await axios.post(apiUrl, employeeData);
+			if (isEdit && row?.id) {
+				await updateEmployee(row.id, employeeData);
+				message.success('Cập nhật nhân viên thành công!');
+			} else {
+				await createEmployee(employeeData);
+				message.success('Thêm nhân viên thành công!');
+			}
+
+			setVisible(false);
+			fetchEmployeeData();
+		} catch (error) {
+			console.error('Error saving employee:', error);
+			message.error('Có lỗi xảy ra khi lưu thông tin nhân viên!');
 		}
-		setVisible(false);
-		fetchEmployees();
 	};
 
 	return (
-		<Form form={form} onFinish={onFinish}>
+		<Form form={form} layout='vertical' onFinish={onFinish}>
 			<Form.Item
-				label='Tên nhân viên'
 				name='name'
+				label='Tên nhân viên'
 				rules={[{ required: true, message: 'Vui lòng nhập tên nhân viên!' }]}
 			>
-				<Input />
+				<Input placeholder='Nhập tên nhân viên' />
 			</Form.Item>
+
 			<Form.Item
-				label='Số khách tối đa/ngày'
 				name='maxCustomersPerDay'
+				label='Số khách tối đa mỗi ngày'
 				rules={[{ required: true, message: 'Vui lòng nhập số khách tối đa!' }]}
 			>
-				<Input type='number' />
+				<Input type='number' placeholder='Nhập số khách tối đa' />
 			</Form.Item>
+
 			<Form.Item
-				label='Lịch làm việc'
 				name='workSchedule'
-				rules={[{ required: true, message: 'Vui lòng chọn ít nhất một lịch làm việc!' }]}
+				label='Lịch làm việc'
+				rules={[{ required: true, message: 'Vui lòng chọn lịch làm việc!' }]}
 			>
-				<Select mode='multiple' placeholder='Chọn ngày và ca làm việc' allowClear>
-					{['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].flatMap((day) =>
-						['7h-12h', '13h-18h', '19h-22h'].map((shift) => (
-							<Option key={`${day}, ${shift}`} value={`${day}, ${shift}`}>
-								{`${day}, ${shift}`}
-							</Option>
-						)),
-					)}
+				<Select mode='multiple' placeholder='Chọn lịch làm việc'>
+					<Option value='T2'>Thứ 2</Option>
+					<Option value='T3'>Thứ 3</Option>
+					<Option value='T4'>Thứ 4</Option>
+					<Option value='T5'>Thứ 5</Option>
+					<Option value='T6'>Thứ 6</Option>
+					<Option value='T7'>Thứ 7</Option>
+					<Option value='CN'>Chủ nhật</Option>
 				</Select>
 			</Form.Item>
+
 			<Form.Item
-				label='Dịch vụ'
 				name='services'
-				rules={[{ required: true, message: 'Vui lòng chọn ít nhất một dịch vụ!' }]}
+				label='Dịch vụ đảm nhận'
+				rules={[{ required: true, message: 'Vui lòng chọn dịch vụ!' }]}
 			>
-				<Select mode='multiple' placeholder='Chọn dịch vụ' allowClear>
+				<Select mode='multiple' placeholder='Chọn dịch vụ'>
 					{services.map((service) => (
 						<Option key={service.id} value={service.id}>
 							{service.name}
@@ -103,112 +105,133 @@ const EmployeeForm: React.FC<{
 					))}
 				</Select>
 			</Form.Item>
-			<div className='form-footer'>
-				<Button htmlType='submit' type='primary'>
-					{isEdit ? 'Lưu' : 'Thêm'}
+
+			<Form.Item>
+				<Button type='primary' htmlType='submit'>
+					{isEdit ? 'Cập nhật' : 'Thêm mới'}
 				</Button>
-				<Button onClick={() => setVisible(false)}>Hủy</Button>
-			</div>
+			</Form.Item>
 		</Form>
 	);
 };
 
-const EmployeeManagement = () => {
+const EmployeeManagement: React.FC = () => {
 	const [employees, setEmployees] = useState<Employee[]>([]);
 	const [services, setServices] = useState<Service[]>([]);
 	const [visible, setVisible] = useState(false);
 	const [isEdit, setIsEdit] = useState(false);
-	const [selectedRow, setSelectedRow] = useState<Employee | undefined>();
+	const [currentRow, setCurrentRow] = useState<Employee | undefined>(undefined);
+	const [loading, setLoading] = useState(true);
 
-	const fetchEmployees = async () => {
-		const response = await axios.get('https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Nhanvien');
-		setEmployees(response.data);
-	};
+	const fetchEmployeeData = async () => {
+		setLoading(true);
+		try {
+			const [employeesData, servicesData] = await Promise.all([fetchEmployees(), fetchServices()]);
 
-	const fetchServices = async () => {
-		const response = await axios.get('https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Vieclam');
-		setServices(response.data);
+			setEmployees(employeesData);
+			setServices(servicesData);
+		} catch (error) {
+			console.error('Error fetching data:', error);
+			message.error('Có lỗi xảy ra khi tải dữ liệu!');
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	useEffect(() => {
-		fetchEmployees();
-		fetchServices();
+		fetchEmployeeData();
 	}, []);
 
+	const handleAdd = () => {
+		setIsEdit(false);
+		setCurrentRow(undefined);
+		setVisible(true);
+	};
+
+	const handleEdit = (record: Employee) => {
+		setIsEdit(true);
+		setCurrentRow(record);
+		setVisible(true);
+	};
+
+	const handleDelete = async (id: string) => {
+		try {
+			await deleteEmployee(id);
+			message.success('Xóa nhân viên thành công!');
+			fetchEmployeeData();
+		} catch (error) {
+			console.error('Error deleting employee:', error);
+			message.error('Có lỗi xảy ra khi xóa nhân viên!');
+		}
+	};
+
 	const columns = [
-		{ title: 'Tên nhân viên', dataIndex: 'name', key: 'name', width: 200 },
-		{ title: 'Số khách tối đa/ngày', dataIndex: 'maxCustomersPerDay', key: 'maxCustomers', width: 150 },
+		{
+			title: 'Tên nhân viên',
+			dataIndex: 'name',
+			key: 'name',
+		},
+		{
+			title: 'Số khách tối đa/ngày',
+			dataIndex: 'maxCustomersPerDay',
+			key: 'maxCustomersPerDay',
+		},
 		{
 			title: 'Lịch làm việc',
 			dataIndex: 'workSchedule',
-			key: 'schedule',
-			width: 300,
-			render: (workSchedule: string[]) => (Array.isArray(workSchedule) ? workSchedule.join('; ') : 'Chưa có lịch'),
+			key: 'workSchedule',
+			render: (workSchedule: string[]) => workSchedule.join(', '),
 		},
 		{
-			title: 'Dịch vụ',
+			title: 'Dịch vụ đảm nhận',
 			dataIndex: 'services',
 			key: 'services',
-			width: 300,
-			render: (serviceIds: string[]) =>
-				Array.isArray(serviceIds)
-					? serviceIds.map((id) => services.find((service) => service.id === id)?.name || 'Không xác định').join('; ')
-					: 'Chưa có dịch vụ',
+			render: (serviceIds: string[]) => {
+				const serviceNames = serviceIds.map((id) => {
+					const service = services.find((s) => s.id === id);
+					return service ? service.name : '';
+				});
+				return serviceNames.join(', ');
+			},
 		},
 		{
-			title: 'Hành động',
-			width: 200,
-			align: 'center' as const,
-			render: (record: Employee) => (
-				<div>
-					<Button
-						onClick={() => {
-							setVisible(true);
-							setSelectedRow(record);
-							setIsEdit(true);
-						}}
-					>
+			title: 'Thao tác',
+			key: 'action',
+			render: (_: any, record: Employee) => (
+				<>
+					<Button type='link' onClick={() => handleEdit(record)}>
 						Sửa
 					</Button>
-					<Button
-						style={{ marginLeft: 10 }}
-						type='primary'
-						onClick={async () => {
-							await axios.delete(`https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Nhanvien/${record.id}`);
-							fetchEmployees();
-						}}
-					>
+					<Button type='link' danger onClick={() => handleDelete(record.id)}>
 						Xóa
 					</Button>
-				</div>
+				</>
 			),
 		},
 	];
 
 	return (
-		<div>
-			<Button
-				type='primary'
-				onClick={() => {
-					setVisible(true);
-					setIsEdit(false);
-				}}
-			>
-				Thêm nhân viên
-			</Button>
-			<Table dataSource={employees} columns={columns} rowKey='id' />
+		<div style={{ padding: '20px' }}>
+			<div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+				<h2>Quản lý nhân viên</h2>
+				<Button type='primary' onClick={handleAdd}>
+					Thêm nhân viên
+				</Button>
+			</div>
+
+			<Table columns={columns} dataSource={employees} rowKey='id' loading={loading} />
+
 			<Modal
-				destroyOnClose
-				footer={false}
-				title={isEdit ? 'Sửa nhân viên' : 'Thêm nhân viên'}
+				title={isEdit ? 'Sửa thông tin nhân viên' : 'Thêm nhân viên mới'}
 				visible={visible}
 				onCancel={() => setVisible(false)}
+				footer={null}
 			>
 				<EmployeeForm
 					isEdit={isEdit}
-					row={selectedRow}
+					row={currentRow}
 					setVisible={setVisible}
-					fetchEmployees={fetchEmployees}
+					fetchEmployeeData={fetchEmployeeData}
 					services={services}
 				/>
 			</Modal>

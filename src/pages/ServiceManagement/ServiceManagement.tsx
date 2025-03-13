@@ -1,22 +1,20 @@
-import { Button, Form, Input, Modal, Table, Select } from 'antd';
+import { Button, Form, Input, Modal, Table, Select, message } from 'antd';
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+
+// Import services
+import { fetchServices, createService, updateService, deleteService } from '../../services/service';
+
+// Import models
+import { Service } from '../../models/service';
 
 const { Option } = Select;
-
-interface Service {
-	id?: string;
-	name: string;
-	price: number;
-	workSchedule: string[]; // Mảng lịch làm việc
-}
 
 const ServiceForm: React.FC<{
 	isEdit: boolean;
 	row: Service | undefined;
 	setVisible: (visible: boolean) => void;
-	fetchServices: () => void;
-}> = ({ isEdit, row, setVisible, fetchServices }) => {
+	fetchServiceData: () => void;
+}> = ({ isEdit, row, setVisible, fetchServiceData }) => {
 	const [form] = Form.useForm();
 
 	useEffect(() => {
@@ -29,133 +27,166 @@ const ServiceForm: React.FC<{
 		} else {
 			form.resetFields();
 		}
-	}, [row, isEdit, form]);
+	}, [form, row, isEdit]);
 
 	const onFinish = async (values: any) => {
-		const apiUrl = 'https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Vieclam';
-		const serviceData = {
-			name: values.name,
-			price: values.price,
-			workSchedule: values.workSchedule || [],
-		};
+		try {
+			const serviceData = {
+				name: values.name,
+				price: Number(values.price),
+				workSchedule: values.workSchedule || [],
+			};
 
-		if (isEdit && row?.id) {
-			await axios.put(`${apiUrl}/${row.id}`, serviceData);
-		} else {
-			await axios.post(apiUrl, serviceData);
+			if (isEdit && row?.id) {
+				await updateService(row.id, serviceData);
+				message.success('Cập nhật dịch vụ thành công!');
+			} else {
+				await createService(serviceData);
+				message.success('Thêm dịch vụ thành công!');
+			}
+
+			setVisible(false);
+			fetchServiceData();
+		} catch (error) {
+			console.error('Error saving service:', error);
+			message.error('Có lỗi xảy ra khi lưu thông tin dịch vụ!');
 		}
-		setVisible(false);
-		fetchServices();
 	};
 
 	return (
-		<Form form={form} onFinish={onFinish}>
-			<Form.Item label='Tên dịch vụ' name='name' rules={[{ required: true, message: 'Vui lòng nhập tên dịch vụ!' }]}>
-				<Input />
+		<Form form={form} layout='vertical' onFinish={onFinish}>
+			<Form.Item name='name' label='Tên dịch vụ' rules={[{ required: true, message: 'Vui lòng nhập tên dịch vụ!' }]}>
+				<Input placeholder='Nhập tên dịch vụ' />
 			</Form.Item>
-			<Form.Item label='Giá (VND)' name='price' rules={[{ required: true, message: 'Vui lòng nhập giá dịch vụ!' }]}>
-				<Input type='number' />
+
+			<Form.Item name='price' label='Giá dịch vụ' rules={[{ required: true, message: 'Vui lòng nhập giá dịch vụ!' }]}>
+				<Input type='number' placeholder='Nhập giá dịch vụ' />
 			</Form.Item>
+
 			<Form.Item
-				label='Lịch thực hiện'
 				name='workSchedule'
-				rules={[{ required: true, message: 'Vui lòng chọn ít nhất một lịch thực hiện!' }]}
+				label='Lịch làm việc'
+				rules={[{ required: true, message: 'Vui lòng chọn lịch làm việc!' }]}
 			>
-				<Select mode='multiple' placeholder='Chọn ngày và ca thực hiện' allowClear>
-					{['Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7', 'Chủ nhật'].flatMap((day) =>
-						['7h-12h', '13h-18h', '19h-22h'].map((shift) => (
-							<Option key={`${day}, ${shift}`} value={`${day}, ${shift}`}>
-								{`${day}, ${shift}`}
-							</Option>
-						)),
-					)}
+				<Select mode='multiple' placeholder='Chọn lịch làm việc'>
+					<Option value='T2'>Thứ 2</Option>
+					<Option value='T3'>Thứ 3</Option>
+					<Option value='T4'>Thứ 4</Option>
+					<Option value='T5'>Thứ 5</Option>
+					<Option value='T6'>Thứ 6</Option>
+					<Option value='T7'>Thứ 7</Option>
+					<Option value='CN'>Chủ nhật</Option>
 				</Select>
 			</Form.Item>
-			<div className='form-footer'>
-				<Button htmlType='submit' type='primary'>
-					{isEdit ? 'Lưu' : 'Thêm'}
+
+			<Form.Item>
+				<Button type='primary' htmlType='submit'>
+					{isEdit ? 'Cập nhật' : 'Thêm mới'}
 				</Button>
-				<Button onClick={() => setVisible(false)}>Hủy</Button>
-			</div>
+			</Form.Item>
 		</Form>
 	);
 };
 
-const ServiceManagement = () => {
+const ServiceManagement: React.FC = () => {
 	const [services, setServices] = useState<Service[]>([]);
 	const [visible, setVisible] = useState(false);
 	const [isEdit, setIsEdit] = useState(false);
-	const [selectedRow, setSelectedRow] = useState<Service | undefined>();
+	const [currentRow, setCurrentRow] = useState<Service | undefined>(undefined);
+	const [loading, setLoading] = useState(true);
 
-	const fetchServices = async () => {
-		const response = await axios.get('https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Vieclam');
-		setServices(response.data);
+	const fetchServiceData = async () => {
+		setLoading(true);
+		try {
+			const servicesData = await fetchServices();
+			setServices(servicesData);
+		} catch (error) {
+			console.error('Error fetching services:', error);
+			message.error('Có lỗi xảy ra khi tải dữ liệu!');
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	useEffect(() => {
-		fetchServices();
+		fetchServiceData();
 	}, []);
 
+	const handleAdd = () => {
+		setIsEdit(false);
+		setCurrentRow(undefined);
+		setVisible(true);
+	};
+
+	const handleEdit = (record: Service) => {
+		setIsEdit(true);
+		setCurrentRow(record);
+		setVisible(true);
+	};
+
+	const handleDelete = async (id: string) => {
+		try {
+			await deleteService(id);
+			message.success('Xóa dịch vụ thành công!');
+			fetchServiceData();
+		} catch (error) {
+			console.error('Error deleting service:', error);
+			message.error('Có lỗi xảy ra khi xóa dịch vụ!');
+		}
+	};
+
 	const columns = [
-		{ title: 'Tên dịch vụ', dataIndex: 'name', key: 'name', width: 200 },
-		{ title: 'Giá (VND)', dataIndex: 'price', key: 'price', width: 150 },
 		{
-			title: 'Lịch thực hiện',
-			dataIndex: 'workSchedule',
-			key: 'schedule',
-			width: 300,
-			render: (workSchedule: string[]) => (Array.isArray(workSchedule) ? workSchedule.join('; ') : 'Chưa có lịch'),
+			title: 'Tên dịch vụ',
+			dataIndex: 'name',
+			key: 'name',
 		},
 		{
-			title: 'Hành động',
-			width: 200,
-			align: 'center' as const,
-			render: (record: Service) => (
-				<div>
-					<Button
-						onClick={() => {
-							setVisible(true);
-							setSelectedRow(record);
-							setIsEdit(true);
-						}}
-					>
+			title: 'Giá dịch vụ',
+			dataIndex: 'price',
+			key: 'price',
+			render: (price: number) => `${price.toLocaleString()} VND`,
+		},
+		{
+			title: 'Lịch làm việc',
+			dataIndex: 'workSchedule',
+			key: 'workSchedule',
+			render: (workSchedule: string[]) => workSchedule.join(', '),
+		},
+		{
+			title: 'Thao tác',
+			key: 'action',
+			render: (_: any, record: Service) => (
+				<>
+					<Button type='link' onClick={() => handleEdit(record)}>
 						Sửa
 					</Button>
-					<Button
-						style={{ marginLeft: 10 }}
-						type='primary'
-						onClick={async () => {
-							await axios.delete(`https://67d237fd90e0670699bcb276.mockapi.io/cuahang/Vieclam/${record.id}`);
-							fetchServices();
-						}}
-					>
+					<Button type='link' danger onClick={() => handleDelete(record.id)}>
 						Xóa
 					</Button>
-				</div>
+				</>
 			),
 		},
 	];
 
 	return (
-		<div>
-			<Button
-				type='primary'
-				onClick={() => {
-					setVisible(true);
-					setIsEdit(false);
-				}}
-			>
-				Thêm dịch vụ
-			</Button>
-			<Table dataSource={services} columns={columns} rowKey='id' />
+		<div style={{ padding: '20px' }}>
+			<div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+				<h2>Quản lý dịch vụ</h2>
+				<Button type='primary' onClick={handleAdd}>
+					Thêm dịch vụ
+				</Button>
+			</div>
+
+			<Table columns={columns} dataSource={services} rowKey='id' loading={loading} />
+
 			<Modal
-				destroyOnClose
-				footer={false}
-				title={isEdit ? 'Sửa dịch vụ' : 'Thêm dịch vụ'}
+				title={isEdit ? 'Sửa thông tin dịch vụ' : 'Thêm dịch vụ mới'}
 				visible={visible}
 				onCancel={() => setVisible(false)}
+				footer={null}
 			>
-				<ServiceForm isEdit={isEdit} row={selectedRow} setVisible={setVisible} fetchServices={fetchServices} />
+				<ServiceForm isEdit={isEdit} row={currentRow} setVisible={setVisible} fetchServiceData={fetchServiceData} />
 			</Modal>
 		</div>
 	);

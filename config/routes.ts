@@ -50,6 +50,24 @@ export default [
 		component: './ServiceManagement',
 		icon: 'ToolOutlined',
 	},
+	{
+		path: '/appointment-management',
+		name: 'AppointmentManagement',
+		component: './AppointmentManagement',
+		icon: 'CalendarOutlined',
+	},
+	{
+		path: '/Review',
+		name: 'Review',
+		component: './Review',
+		icon: 'StarOutlined',
+	},
+	{
+		path: '/revenue-stats',
+		name: 'RevenueStats',
+		component: './RevenueStats',
+		icon: 'DollarOutlined',
+	},
 
 	// DANH MUC HE THONG
 	// {

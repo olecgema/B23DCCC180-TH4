@@ -40,6 +40,20 @@ export default [
 		icon: 'ArrowsAltOutlined',
 	},
 	{
+		path: '/QuanLySoVanBang',
+		name: 'Quản lý sổ văn bằng',
+		component: './QuanLySoVanBang',
+		icon: 'FileTextOutlined',
+
+	},
+	{
+		path: '/QuyetDinh',
+		name: 'Quản lý quyết định',
+		component: './QuyetDinhTotNghiep',
+		icon: 'FileProtectOutlined',
+
+	},
+	{
 		path: '/ung-dung-dat-lich',
 		name: 'Ứng dụng đặt lịch',
 		routes: [

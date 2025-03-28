@@ -58,7 +58,7 @@ const RevenueStatsPage: React.FC = () => {
 		yField: 'totalRevenue',
 		label: {
 			position: 'middle' as const,
-			style: { fill: '#FFFFFF', opacity: 0.6 },
+			style: { fill: 'green', opacity: 0.6 },
 			content: (item: any) => `${item.totalRevenue.toLocaleString()} VND`,
 		},
 		xAxis: {

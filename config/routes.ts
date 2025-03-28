@@ -76,6 +76,30 @@ export default [
 		],
 	},
 
+	{
+		path: '/quan-ly-tot-nghiep',
+		name: 'Quản lý tốt nghiệp',
+		routes: [
+			{
+				path: '/quan-ly-tot-nghiep/quan-ly-so-van-bang',
+				name: 'Quản sổ văn bằng',
+				component: './QuanLySoVanBang',
+				icon: 'ToolOutlined',
+			},
+			{
+				path: '/quan-ly-tot-nghiep/quyet-dinh-tot-nghiep',
+				name: 'Quyết định tốt nghiệp',
+				component: './QuyetDinhTotNghiep',
+				icon: 'ToolOutlined',
+			},
+			{
+				path: 'quan-ly-tot-nghiep/tra-cuu-van-bang',
+				name: 'Tra cứu văn bằng',
+				component: './TraCuuVanBang',
+				icon: 'ToolOutlined',
+			},
+		],
+	},
 	// DANH MUC HE THONG
 	// {
 	// 	name: 'DanhMuc',
